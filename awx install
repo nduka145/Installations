@@ -1,0 +1,58 @@
+sudo apt update && sudo apt upgrade -y
+curl -sfL https://get.k3s.io | sh -
+kubectl version
+sudo chown ubuntu:ubuntu /etc/rancher/k3s/k3s.yaml
+
+curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+sudo mv kustomize /usr/local/bin/
+which kustomize
+vi kustomization.yaml
+
+     apiVersion: kustomize.config.k8s.io/v1beta1
+     kind: Kustomization
+     resources:
+       - github.com/ansible/awx-operator/config/default?ref=2.17.0
+     
+     images:
+       - name: quay.io/ansible/awx-operator
+         newTag: 2.17.0
+     
+     namespace: awx
+
+
+kustomize build . | kubectl apply -f -
+kubectl get pods -n awx
+
+
+vi awx.yml
+    ---
+    apiVersion: awx.ansible.com/v1beta1
+    kind: AWX
+    metadata:
+      name: awx
+    spec:
+      service_type: nodeport
+      nodeport_port: 30080
+
+
+vi kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+      - github.com/ansible/awx-operator/config/default?ref=2.17.0
+      - awx.yml
+    
+    images:
+      - name: quay.io/ansible/awx-operator
+        newTag: 2.17.0
+    
+    namespace: awx
+
+
+kustomize build . | kubectl apply -f -
+
+kubectl logs -f deployments/awx-operator-controller-manager -c awx-manager -n awx
+kubectl get pods -n awx
+kubectl get pods -n awx
+
+kubectl get secret awx-admin-password -o jsonpath="{.data.password}" --namespace awx | base64 --decode
